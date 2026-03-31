@@ -1,7 +1,53 @@
-.venv/
-__pycache__/
+# Virtual Environment (самое важное!)
+venv/
+env/
 .env
-data/
-*.tif
+.env.local
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data files (если данные большие или чувствительные)
+data
 *.shp
+*.shx
 *.dbf
+*.prj
+*.sbn
+*.sbx
+*.shp.xml
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Repomix output
+repomix-output.*
