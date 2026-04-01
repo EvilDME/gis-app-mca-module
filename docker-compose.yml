@@ -1,0 +1,9 @@
+services:
+  gis-service:
+    build: .
+    container_name: gis_mca_app
+    volumes:
+      - .:/app  # Hot Reload
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1 # Чтобы логи в терминале появлялись сразу
