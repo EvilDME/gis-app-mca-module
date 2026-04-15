@@ -61,3 +61,59 @@ def reproject_vector(gdf: gpd.GeoDataFrame, target_crs: str = 'EPSG:32640') -> g
         return gdf
     print(f"🔄 Репроецирование вектора в {target_crs}...")
     return gdf.to_crs(target_crs)
+
+def align_raster(target: RasterData, reference: RasterData) -> RasterData:
+    """
+    Приводит target к сетке reference (CRS, Transform, Width, Height).
+    Это гарантирует, что массивы numpy будут идентичны по размеру.
+    """
+    # Если они уже идентичны, ничего не делаем (экономим время)
+    if (target.meta['crs'] == reference.meta['crs'] and 
+        target.meta['transform'] == reference.meta['transform'] and
+        target.meta['width'] == reference.meta['width'] and
+        target.meta['height'] == reference.meta['height']):
+        return target
+
+    print(f"📏 Выравнивание {target.name} под сетку {reference.name}...")
+
+    # 1. Извлекаем параметры эталона
+    dst_crs = reference.meta['crs']
+    dst_transform = reference.meta['transform']
+    dst_width = reference.meta['width']
+    dst_height = reference.meta['height']
+    dst_nodata = target.meta.get('nodata') # Сохраняем nodata из мишени
+
+    # 2. Создаем пустой массив нужного размера (как у эталона)
+    aligned_values = np.full(
+        (dst_height, dst_width), 
+        dst_nodata if dst_nodata is not None else np.nan, 
+        dtype=target.values.dtype
+    )
+
+    # 3. Репроецируем / Пересчитываем сетку
+    reproject(
+        source=target.values,
+        destination=aligned_values,
+        src_transform=target.meta['transform'],
+        src_crs=target.meta['crs'],
+        dst_transform=dst_transform,
+        dst_crs=dst_crs,
+        resampling=Resampling.bilinear, # Билинейная интерполяция лучше для непрерывных данных
+        src_nodata=dst_nodata,
+        dst_nodata=dst_nodata
+    )
+
+    # 4. Собираем новые метаданные
+    new_meta = target.meta.copy()
+    new_meta.update({
+        'crs': dst_crs,
+        'transform': dst_transform,
+        'width': dst_width,
+        'height': dst_height
+    })
+
+    return RasterData(
+        values=aligned_values,
+        meta=new_meta,
+        name=f"{target.name}_aligned"
+    )
