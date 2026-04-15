@@ -1,9 +1,79 @@
 services:
+  # Сервис базы данных
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: gis_postgis_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Скрипт для автоматического включения PostGIS расширения
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+
+  # MinIO объектное хранилище
+  minio:
+    image: minio/minio:latest
+    container_name: gis_minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web консоль
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Автоматическое создание bucket в MinIO (запускается после minio)
+  minio-init:
+    image: minio/mc:latest
+    container_name: gis_minio_init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} 2>/dev/null; do
+        echo 'Waiting for MinIO...';
+        sleep 2;
+      done;
+      mc mb local/${MINIO_BUCKET:-rasters} --ignore-existing;
+      mc policy set download local/${MINIO_BUCKET:-rasters};
+      echo 'Bucket ${MINIO_BUCKET:-rasters} created.'
+      "
+
+  # Твое приложение
   gis-service:
+    image: my-gis-app:latest
     build: .
     container_name: gis_mca_app
+    depends_on:
+      db:
+        condition: service_started
+      minio:
+        condition: service_healthy
     volumes:
-      - .:/app  # Hot Reload
+      - .:/app
       - ./data:/app/data
     environment:
-      - PYTHONUNBUFFERED=1 # Чтобы логи в терминале появлялись сразу
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-gis_user}:${POSTGRES_PASSWORD:-gis_password}@db:5432/${POSTGRES_DB:-gis_mca}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_BUCKET=${MINIO_BUCKET:-rasters}
+      - MINIO_SECURE=False
+      - PYTHONUNBUFFERED=1
+
+volumes:
+  postgres_data:
+  minio_data:
