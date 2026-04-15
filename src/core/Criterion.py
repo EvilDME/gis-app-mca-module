@@ -3,19 +3,23 @@ import numpy as np
 from src.core.models import RasterData # Твоя модель данных
 
 class Criterion:
-    def __init__(self, json_path):
-        with open(json_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-        
-        self.id = config['id']
-        self.display_name = config['display_name']
-        self.weight = config.get('weight', 1.0)
-        self.type = config.get('type') # Добавим тип (slope, proximity и т.д.)
-        
-        points = sorted(config['points'], key=lambda x: x[0])
+    def __init__(self, id, display_name, points, weight=1.0):
+        self.id = id
+        self.display_name = display_name
+        self.weight = weight
+        points = sorted(points, key=lambda x: x[0])
         self.x_values = np.array([p[0] for p in points])
         self.y_values = np.array([p[1] for p in points])
 
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            id=data['id'],
+            display_name=data.get('display_name', data['id']),
+            points=data['evaluation']['points'],
+            weight=data.get('weight', 1.0)
+        )
+    
     def evaluate(self, raster: RasterData) -> RasterData:
         """Превращает сырые данные растра в оценки [0, 1] на основе точек."""
         print(f"📉 Оценка критерия '{self.display_name}' через интерполяцию...")
