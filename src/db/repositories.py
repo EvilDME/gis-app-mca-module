@@ -161,10 +161,10 @@ class TaskRepository(BaseRepository):
     def get_by_project(self, project_id: uuid.UUID) -> List[Task]:
         return self.session.query(Task).filter(Task.project_id == project_id).order_by(Task.created_at.desc()).all()
 
-    def create(self, project_id: uuid.UUID, description: Dict[str, Any]) -> Task:
+    def create(self, project_id: uuid.UUID, user_id: str, description: Dict[str, Any]) -> Task:
         task = Task(
             project_id=project_id,
-            status='PENDING',
+            user_id=user_id,
             description=description
         )
         self.add(task)
@@ -182,7 +182,18 @@ class TaskRepository(BaseRepository):
             task.error_message = error_message
         self.session.commit()
         return task
+    
+    def get_by_user(self, user_id: str, limit: int = 100) -> List[Task]:
+        """
+        Возвращает задачи пользователя, отсортированные по убыванию даты создания.
+        """
+        return self.session.query(Task).filter(Task.user_id == user_id).order_by(Task.created_at.desc()).limit(limit).all()
 
+    def get_by_user_and_status(self, user_id: str, status: str) -> List[Task]:
+        """
+        Возвращает задачи пользователя с определённым статусом (PENDING, PROCESSING, COMPLETED, FAILED).
+        """
+        return self.session.query(Task).filter(Task.user_id == user_id, Task.status == status).order_by(Task.created_at.desc()).all()
 
 class ResultRepository(BaseRepository):
     """Репозиторий для выходных результатов."""
@@ -196,13 +207,14 @@ class ResultRepository(BaseRepository):
     def get_by_project(self, project_id: uuid.UUID) -> List[Result]:
         return self.session.query(Result).filter(Result.project_id == project_id).all()
 
-    def create(self, task_id: uuid.UUID, project_id: uuid.UUID,
-               result_type: str, data_url: str, name: str,
-               geo_metadata: Dict[str, Any],
-               criterion_id: Optional[uuid.UUID] = None) -> Result:
+    def create(self, task_id: uuid.UUID, project_id: uuid.UUID, user_id: str,
+            result_type: str, data_url: str, name: str,
+            geo_metadata: Dict[str, Any],
+            criterion_id: Optional[uuid.UUID] = None) -> Result:
         result = Result(
             task_id=task_id,
             project_id=project_id,
+            user_id=user_id,
             criterion_id=criterion_id,
             result_type=result_type,
             data_url=data_url,
@@ -219,3 +231,21 @@ class ResultRepository(BaseRepository):
         deleted = self.session.query(Result).filter(Result.created_at < threshold).delete()
         self.session.commit()
         return deleted
+    
+    def get_by_user(self, user_id: str, limit: int = 100) -> List[Result]:
+        """
+        Возвращает все результаты пользователя, отсортированные по убыванию даты создания.
+        """
+        return self.session.query(Result).filter(Result.user_id == user_id).order_by(Result.created_at.desc()).limit(limit).all()
+
+    def get_by_user_and_type(self, user_id: str, result_type: str) -> List[Result]:
+        """
+        Возвращает результаты пользователя определённого типа (intermediate_raster, final_raster, vector_output).
+        """
+        return self.session.query(Result).filter(Result.user_id == user_id, Result.result_type == result_type).order_by(Result.created_at.desc()).all()
+
+    def get_by_project_and_user(self, project_id: uuid.UUID, user_id: str) -> List[Result]:
+        """
+        Возвращает результаты конкретного проекта с проверкой принадлежности пользователю.
+        """
+        return self.session.query(Result).filter(Result.project_id == project_id, Result.user_id == user_id).all()

@@ -64,13 +64,13 @@ class ProjectCriterion(Base):
 
 
 class Task(Base):
-    """Единичный запуск проекта – фиксирует конфигурацию, статус выполнения."""
     __tablename__ = 'tasks'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey('mca_projects.id', ondelete='CASCADE'))
+    user_id = Column(String(255), nullable=False)  # ← добавить
     status = Column(Enum('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', name='task_status_enum'), nullable=False, default='PENDING')
-    description = Column(JSONB, nullable=False)          # полный слепок проекта + критериев + слоёв на момент запуска
+    description = Column(JSONB, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     finished_at = Column(DateTime, nullable=True)
     error_message = Column(String, nullable=True)
@@ -81,17 +81,16 @@ class Task(Base):
 
 
 class Result(Base):
-    """Выходной геоданные (промежуточные или финальные) – ссылка на файл в MinIO."""
     __tablename__ = 'results'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     task_id = Column(UUID(as_uuid=True), ForeignKey('tasks.id', ondelete='CASCADE'))
-    project_id = Column(UUID(as_uuid=True), ForeignKey('mca_projects.id', ondelete='CASCADE'))  # денормализация
+    project_id = Column(UUID(as_uuid=True), ForeignKey('mca_projects.id', ondelete='CASCADE'))
+    user_id = Column(String(255), nullable=False)  # ← добавить
     criterion_id = Column(UUID(as_uuid=True), ForeignKey('project_criteria.id', ondelete='SET NULL'), nullable=True)
-
     result_type = Column(Enum('intermediate_raster', 'final_raster', 'vector_output', name='result_type_enum'), nullable=False)
-    data_url = Column(String, nullable=False)            # minio://bucket/...
-    geo_metadata = Column(JSONB, nullable=False)        # {bbox, crs, min_val, max_val, style_hint}
+    data_url = Column(String, nullable=False)
+    geo_metadata = Column(JSONB, nullable=False)
     name = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
