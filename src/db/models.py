@@ -51,7 +51,6 @@ class ProjectCriterion(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey('mca_projects.id', ondelete='CASCADE'))
-    layer_id = Column(UUID(as_uuid=True), ForeignKey('layers.id', ondelete='RESTRICT'))
     weight = Column(Float, nullable=False)               # от 0 до 1
     analysis_type = Column(Enum('slope', 'proximity', 'reclass', name='analysis_type_enum'), nullable=False)
     logic_params = Column(JSONB, nullable=False)         # например {"units":"degrees"} или {"normalization_points":[[0,1],[500,0]]}
@@ -59,7 +58,6 @@ class ProjectCriterion(Base):
 
     # связи
     project = relationship("McaProject", back_populates="criteria")
-    layer = relationship("Layer", back_populates="criteria")
     results = relationship("Result", back_populates="criterion")
 
 

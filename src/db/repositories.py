@@ -122,11 +122,10 @@ class ProjectCriterionRepository(BaseRepository):
     def get_by_project(self, project_id: uuid.UUID) -> List[ProjectCriterion]:
         return self.session.query(ProjectCriterion).filter(ProjectCriterion.project_id == project_id).all()
 
-    def create(self, project_id: uuid.UUID, layer_id: uuid.UUID,
+    def create(self, project_id: uuid.UUID,
                weight: float, analysis_type: str, logic_params: Dict[str, Any]) -> ProjectCriterion:
         criterion = ProjectCriterion(
             project_id=project_id,
-            layer_id=layer_id,
             weight=weight,
             analysis_type=analysis_type,
             logic_params=logic_params
