@@ -1,13 +1,9 @@
 import uuid
-from datetime import timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from shapely.geometry import shape as shapely_shape
 from geoalchemy2.shape import from_shape
-import os
-from urllib.parse import urlparse, urlunparse
 
 from src.api import schemas
 from src.api.dependencies import (
@@ -73,12 +69,14 @@ def create_project_with_criteria(
             project_id=project.id,
             weight=crit_data.weight,
             analysis_type=crit_data.analysis_type,
+            data_type=crit_data.data_type,
             logic_params=crit_data.logic_params
         )
         created_criteria.append(schemas.CriterionResponse(
             id=criterion.id,
             project_id=criterion.project_id,
             analysis_type=criterion.analysis_type,
+            data_type=criterion.data_type,
             weight=criterion.weight,
             logic_params=criterion.logic_params,
             created_at=criterion.created_at
@@ -134,6 +132,7 @@ def get_project(
                 id=c.id,
                 project_id=c.project_id,
                 analysis_type=c.analysis_type,
+                data_type=c.data_type,
                 weight=c.weight,
                 logic_params=c.logic_params,
                 created_at=c.created_at
@@ -201,12 +200,14 @@ def add_criterion(
         project_id=project_id,
         weight=data.weight,
         analysis_type=data.analysis_type,
+        data_type=data.data_type,
         logic_params=data.logic_params
     )
     return schemas.CriterionResponse(
         id=criterion.id,
         project_id=criterion.project_id,
         analysis_type=criterion.analysis_type,
+        data_type=criterion.data_type,
         weight=criterion.weight,
         logic_params=criterion.logic_params,
         created_at=criterion.created_at
@@ -228,6 +229,7 @@ def list_criteria(
             id=c.id,
             project_id=c.project_id,
             analysis_type=c.analysis_type,
+            data_type=c.data_type,
             weight=c.weight,
             logic_params=c.logic_params,
             created_at=c.created_at
@@ -355,8 +357,6 @@ def get_project_results(
         ) for r in results
     ]
 
-
-
 @router.get("/results/{result_id}/download")
 def download_result(
     result_id: uuid.UUID,
@@ -368,8 +368,5 @@ def download_result(
     if not result or result.user_id != user["user_id"]:
         raise HTTPException(404, "Result not found or access denied")
 
-    # Прямая публичная ссылка (бакет открыт на чтение)
-    # Предполагается, что MinIO доступен из браузера по тому же хосту, что и API, но на порту 9000
-    # Например, если ваше API на example.com:8000, то MinIO на example.com:9000
     public_url = f"http://{settings['minio_public_host']}:9000/{settings['minio_bucket']}/{result.data_url}"
     return {"download_url": public_url}

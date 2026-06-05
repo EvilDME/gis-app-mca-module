@@ -48,6 +48,7 @@ class ProjectResponse(BaseModel):
 # --------------------- КРИТЕРИИ ---------------------
 class CriterionCreateRequest(BaseModel):
     analysis_type: str
+    data_type: str  # добавлено
     weight: float = Field(..., ge=0, le=1)
     logic_params: Dict[str, Any]
 
@@ -59,6 +60,7 @@ class CriterionResponse(BaseModel):
     id: UUID
     project_id: UUID
     analysis_type: str
+    data_type: str  # добавлено
     weight: float
     logic_params: Dict[str, Any]
     created_at: datetime
@@ -80,13 +82,8 @@ class ResultResponse(BaseModel):
     data_url: str
     created_at: datetime
     geo_metadata: Optional[Dict[str, Any]] = None
-    
-# --------------------- ПРОЕКТЫ С КРИТЕРИЯМИ ---------------------
-class CriterionCreateRequest(BaseModel):
-    analysis_type: str
-    weight: float = Field(..., ge=0, le=1)
-    logic_params: Dict[str, Any]
 
+# --------------------- ПРОЕКТЫ С КРИТЕРИЯМИ ---------------------
 class ProjectWithCriteriaCreateRequest(BaseModel):
     name: str
     study_area: GeoJSONPolygon
@@ -96,6 +93,7 @@ class ProjectWithCriteriaCreateRequest(BaseModel):
 class CriterionResponseFull(BaseModel):
     id: UUID
     analysis_type: str
+    data_type: str  # добавлено
     weight: float
     logic_params: Dict[str, Any]
     created_at: datetime

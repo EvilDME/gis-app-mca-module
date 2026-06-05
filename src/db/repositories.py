@@ -47,16 +47,14 @@ class LayerRepository(BaseRepository):
         # supported_analyses хранится как JSONB, используем contains
         return self.session.query(Layer).filter(Layer.supported_analyses.contains([analysis_type])).all()
 
-    def create(self, name: str, source_type: str, data_path: str, crs: str,
-               geometry_type: Optional[str] = None, extent=None,
-               resolution: Optional[float] = None,
-               supported_analyses: Optional[List[str]] = None) -> Layer:
+    def create(self, name, source_type, data_path, crs, data_type, geometry_type=None, extent=None, resolution=None, supported_analyses=None):
         layer = Layer(
             name=name,
             source_type=source_type,
             data_path=data_path,
             geometry_type=geometry_type,
             crs=crs,
+            data_type=data_type,
             extent=extent,
             resolution=resolution,
             supported_analyses=supported_analyses or []
@@ -122,12 +120,12 @@ class ProjectCriterionRepository(BaseRepository):
     def get_by_project(self, project_id: uuid.UUID) -> List[ProjectCriterion]:
         return self.session.query(ProjectCriterion).filter(ProjectCriterion.project_id == project_id).all()
 
-    def create(self, project_id: uuid.UUID, weight: float, analysis_type: str, logic_params: Dict[str, Any]) -> ProjectCriterion:
-        """Создаёт критерий."""
+    def create(self, project_id, weight, analysis_type, data_type, logic_params):
         criterion = ProjectCriterion(
             project_id=project_id,
             weight=weight,
             analysis_type=analysis_type,
+            data_type=data_type,
             logic_params=logic_params
         )
         self.add(criterion)

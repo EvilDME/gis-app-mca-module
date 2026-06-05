@@ -22,7 +22,7 @@ class Layer(Base):
     resolution = Column(Float, nullable=True)           # размер ячейки (м), только для растров
     supported_analyses = Column(JSONB, nullable=False, default=list)  # например ["slope","reclass"] или ["proximity"]
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
+    data_type = Column(String(50), nullable=False)
 
 class McaProject(Base):
     """Проект пользователя – задаёт область интереса, метод агрегации, но не содержит результатов."""
@@ -50,6 +50,7 @@ class ProjectCriterion(Base):
     project_id = Column(UUID(as_uuid=True), ForeignKey('mca_projects.id', ondelete='CASCADE'))
     weight = Column(Float, nullable=False)               # от 0 до 1
     analysis_type = Column(Enum('slope', 'proximity', 'reclass', name='analysis_type_enum'), nullable=False)
+    data_type = Column(String(50), nullable=False)
     logic_params = Column(JSONB, nullable=False)         # например {"units":"degrees"} или {"normalization_points":[[0,1],[500,0]]}
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
