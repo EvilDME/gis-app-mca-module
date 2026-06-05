@@ -8,7 +8,7 @@ def reproject_raster(raster: RasterData, target_crs: str = 'EPSG:32640') -> Rast
     """
     Перепроецирует RasterData, сохраняя оригинальные значения Nodata.
     """
-    print(f"🔄 Репроецирование растра {raster.name} в {target_crs}...")
+    print(f"Репроецирование растра {raster.name} в {target_crs}")
     
     src_crs = raster.meta['crs']
     width = raster.meta['width']

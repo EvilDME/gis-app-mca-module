@@ -23,9 +23,6 @@ class Layer(Base):
     supported_analyses = Column(JSONB, nullable=False, default=list)  # например ["slope","reclass"] или ["proximity"]
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-    # связи
-    criteria = relationship("ProjectCriterion", back_populates="layer")
-
 
 class McaProject(Base):
     """Проект пользователя – задаёт область интереса, метод агрегации, но не содержит результатов."""
@@ -66,7 +63,8 @@ class Task(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey('mca_projects.id', ondelete='CASCADE'))
-    user_id = Column(String(255), nullable=False)  # ← добавить
+    user_id = Column(String(255), nullable=False)
+    external_id = Column(String(255), unique=True, nullable=True)  # добавлено
     status = Column(Enum('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', name='task_status_enum'), nullable=False, default='PENDING')
     description = Column(JSONB, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)

@@ -122,8 +122,8 @@ class ProjectCriterionRepository(BaseRepository):
     def get_by_project(self, project_id: uuid.UUID) -> List[ProjectCriterion]:
         return self.session.query(ProjectCriterion).filter(ProjectCriterion.project_id == project_id).all()
 
-    def create(self, project_id: uuid.UUID,
-               weight: float, analysis_type: str, logic_params: Dict[str, Any]) -> ProjectCriterion:
+    def create(self, project_id: uuid.UUID, weight: float, analysis_type: str, logic_params: Dict[str, Any]) -> ProjectCriterion:
+        """Создаёт критерий."""
         criterion = ProjectCriterion(
             project_id=project_id,
             weight=weight,
@@ -144,12 +144,37 @@ class ProjectCriterionRepository(BaseRepository):
         self.session.commit()
         return criterion
 
+    def delete(self, criterion_id: uuid.UUID) -> bool:
+        """Удаляет критерий по ID."""
+        criterion = self.get_by_id(criterion_id)
+        if not criterion:
+            return False
+        self.session.delete(criterion)
+        self.session.commit()
+        return True
+
     def delete_by_project(self, project_id: uuid.UUID) -> int:
         """Удаляет все критерии проекта. Возвращает количество удалённых."""
         deleted = self.session.query(ProjectCriterion).filter(ProjectCriterion.project_id == project_id).delete()
         self.session.commit()
         return deleted
 
+
+    def create_with_external_id(self, project_id: uuid.UUID, user_id: str, external_id: str, description: Dict[str, Any]) -> Task:
+        """Создаёт задачу с указанным external_id (строковый идентификатор от клиента)."""
+        task = Task(
+            project_id=project_id,
+            user_id=user_id,
+            external_id=external_id,
+            description=description
+        )
+        self.add(task)
+        self.session.commit()
+        return task
+
+    def get_by_external_id(self, external_id: str) -> Optional[Task]:
+        """Находит задачу по внешнему строковому идентификатору."""
+        return self.session.query(Task).filter(Task.external_id == external_id).first()
 
 class TaskRepository(BaseRepository):
     """Репозиторий для задач (запусков проектов)."""
@@ -170,6 +195,17 @@ class TaskRepository(BaseRepository):
         self.session.commit()
         return task
 
+    def create_with_external_id(self, project_id: uuid.UUID, user_id: str, external_id: str, description: Dict[str, Any]) -> Task:
+        task = Task(
+            project_id=project_id,
+            user_id=user_id,
+            external_id=external_id,
+            description=description
+        )
+        self.add(task)
+        self.session.commit()
+        return task
+
     def update_status(self, task_id: uuid.UUID, status: str, error_message: Optional[str] = None) -> Optional[Task]:
         task = self.get_by_id(task_id)
         if not task:
@@ -183,16 +219,13 @@ class TaskRepository(BaseRepository):
         return task
     
     def get_by_user(self, user_id: str, limit: int = 100) -> List[Task]:
-        """
-        Возвращает задачи пользователя, отсортированные по убыванию даты создания.
-        """
         return self.session.query(Task).filter(Task.user_id == user_id).order_by(Task.created_at.desc()).limit(limit).all()
 
     def get_by_user_and_status(self, user_id: str, status: str) -> List[Task]:
-        """
-        Возвращает задачи пользователя с определённым статусом (PENDING, PROCESSING, COMPLETED, FAILED).
-        """
         return self.session.query(Task).filter(Task.user_id == user_id, Task.status == status).order_by(Task.created_at.desc()).all()
+
+    def get_by_external_id(self, external_id: str) -> Optional[Task]:
+        return self.session.query(Task).filter(Task.external_id == external_id).first()
 
 class ResultRepository(BaseRepository):
     """Репозиторий для выходных результатов."""

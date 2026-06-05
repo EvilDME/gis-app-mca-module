@@ -12,7 +12,6 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Скрипт для автоматического включения PostGIS расширения
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
   # MinIO объектное хранилище
@@ -24,6 +23,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # Убрал MINIO_SERVER_URL - она не нужна для внутренних обращений и может мешать
     ports:
       - "9000:9000"   # S3 API
       - "9001:9001"   # Web консоль
@@ -35,21 +35,33 @@ services:
       timeout: 20s
       retries: 3
 
-  # Автоматическое создание bucket в MinIO (запускается после minio)
+  # Инициализация бакета, публичный доступ и CORS
   minio-init:
     image: minio/mc:latest
     container_name: gis_minio_init
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     entrypoint: >
       /bin/sh -c "
+      echo 'Ожидание MinIO...';
       until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} 2>/dev/null; do
-        echo 'Waiting for MinIO...';
         sleep 2;
       done;
+      echo 'Создание бакета ${MINIO_BUCKET:-rasters} (если не существует)';
       mc mb local/${MINIO_BUCKET:-rasters} --ignore-existing;
-      mc policy set download local/${MINIO_BUCKET:-rasters};
-      echo 'Bucket ${MINIO_BUCKET:-rasters} created.'
+      echo 'Открываем публичный доступ на чтение для бакета';
+      mc anonymous set public local/${MINIO_BUCKET:-rasters};
+      echo 'Настройка CORS (разрешаем запросы из браузера)';
+      echo '[{
+        \"AllowedHeaders\": [\"*\"],
+        \"AllowedMethods\": [\"GET\", \"HEAD\"],
+        \"AllowedOrigins\": [\"*\"],
+        \"ExposeHeaders\": [\"ETag\"],
+        \"MaxAgeSeconds\": 3600
+      }]' > /tmp/cors.json;
+      mc cors set local/${MINIO_BUCKET:-rasters} /tmp/cors.json;
+      echo 'Инициализация MinIO завершена. Бакет: ${MINIO_BUCKET:-rasters} доступен по ссылке: http://localhost:9000/${MINIO_BUCKET:-rasters}/'
       "
 
   # Твое приложение
@@ -62,17 +74,21 @@ services:
         condition: service_started
       minio:
         condition: service_healthy
+    ports:
+      - "8000:8000"
     volumes:
       - .:/app
       - ./data:/app/data
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
       - MINIO_BUCKET=${MINIO_BUCKET:-rasters}
       - MINIO_SECURE=False
+      - JWT_SECRET=${JWT_SECRET}
       - PYTHONUNBUFFERED=1
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 
 volumes:
   postgres_data:

@@ -8,11 +8,11 @@ def calculate_proximity(vector_data: gpd.GeoDataFrame, template_raster: RasterDa
     """
     Рассчитывает евклидово расстояние от каждой ячейки растра до ближайшего векторного объекта.
     """
-    print(f"📏 Расчет расстояний для векторов...")
+    print(f"Расчет расстояний")
 
     # 1. Проверяем проекции (критично!)
     if vector_data.crs != template_raster.meta['crs']:
-        print(f"🔄 Перепроецирование векторов из {vector_data.crs} в {template_raster.meta['crs']}")
+        print(f"Перепроецирование векторов из {vector_data.crs} в {template_raster.meta['crs']}")
         vector_data = vector_data.to_crs(template_raster.meta['crs'])
 
     # 2. РАСТЕРИЗАЦИЯ (Создаем бинарную маску)

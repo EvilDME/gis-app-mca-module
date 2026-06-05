@@ -22,7 +22,8 @@ class Criterion:
     
     def evaluate(self, raster: RasterData) -> RasterData:
         """Превращает сырые данные растра в оценки [0, 1] на основе точек."""
-        print(f"📉 Оценка критерия '{self.display_name}' через интерполяцию...")
+        print(f"Evaluating criteria {self.display_name}")
+        print(f"Raster shape: {raster.values.shape}")
         
         values = raster.values.astype(np.float32)
         nodata = raster.meta.get('nodata')
@@ -48,5 +49,7 @@ class Criterion:
 
         new_meta = raster.meta.copy()
         new_meta.update({'dtype': np.float32})
-
+        
+        print("Interpolation finished")
+        
         return RasterData(values=result.astype(np.float32), meta=new_meta, name=f"{self.id}_scored")
