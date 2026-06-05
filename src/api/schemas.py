@@ -108,4 +108,4 @@ class ProjectWithCriteriaResponse(BaseModel):
     study_area: Optional[GeoJSONPolygon] = None
     created_at: datetime
     updated_at: datetime
-    criteria: List[CriterionResponseFull]
+    criteria: List[CriterionResponse]
