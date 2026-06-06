@@ -110,7 +110,7 @@ class McaOrchestrator:
             }
             criterion_logic = Criterion.from_dict(crit_dict)
             scored = criterion_logic.evaluate(aligned)
-            scored_with_name = RasterData(values=scored.values, meta=scored.meta, name=f"{layer.name}_scored")
+            scored_with_name = RasterData(values=scored.values, meta=scored.meta, name=str(crit.id))
             processed_factors.append(scored_with_name)
             used_weights[str(crit.id)] = crit.weight
 
