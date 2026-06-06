@@ -52,6 +52,11 @@ def create_project_with_criteria(
     project_repo = Depends(get_project_repo),
     criterion_repo = Depends(get_criterion_repo)
 ):
+    print("[SERVER] create_project_with_criteria received data:")
+    print(f"  name: {data.name}")
+    print(f"  aggregation_method: {data.aggregation_method}")
+    print(f"  study_area: {data.study_area}")
+    print(f"  criteria: {data.criteria}")
     user_id = user["user_id"]
     shapely_poly = shapely_shape(data.study_area)
     study_area_wkb = from_shape(shapely_poly, srid=4326)
@@ -92,12 +97,74 @@ def create_project_with_criteria(
         criteria=created_criteria
     )
 
+@router.put("/projects/{project_id}/with-criteria", response_model=schemas.ProjectWithCriteriaResponse)
+def update_project_with_criteria(
+    project_id: uuid.UUID,
+    data: schemas.ProjectWithCriteriaCreateRequest,
+    user = Depends(get_current_user),
+    project_repo = Depends(get_project_repo),
+    criterion_repo = Depends(get_criterion_repo)
+):
+    print(f"[SERVER] update_project_with_criteria for project {project_id}")
+    print(f"  name: {data.name}")
+    print(f"  aggregation_method: {data.aggregation_method}")
+    print(f"  study_area: {data.study_area}")
+    print(f"  criteria: {data.criteria}")
+    # Проверяем существование и права
+    project = project_repo.get_by_id(project_id, load_criteria=False)
+    if not project or project.user_id != user["user_id"]:
+        raise HTTPException(404, "Project not found")
+
+    # Обновляем основные поля
+    shapely_poly = shapely_shape(data.study_area)
+    study_area_wkb = from_shape(shapely_poly, srid=4326)
+    project_repo.update(
+        project_id,
+        name=data.name,
+        aggregation_method=data.aggregation_method,
+        study_area=study_area_wkb
+    )
+
+    # Заменяем критерии: удаляем старые, добавляем новые
+    criterion_repo.delete_by_project(project_id)
+    new_criteria = []
+    for crit_data in data.criteria:
+        criterion = criterion_repo.create(
+            project_id=project_id,
+            weight=crit_data.weight,
+            analysis_type=crit_data.analysis_type,
+            data_type=crit_data.data_type,
+            logic_params=crit_data.logic_params
+        )
+        new_criteria.append(schemas.CriterionResponse(
+            id=criterion.id,
+            project_id=criterion.project_id,
+            analysis_type=criterion.analysis_type,
+            data_type=criterion.data_type,
+            weight=criterion.weight,
+            logic_params=criterion.logic_params,
+            created_at=criterion.created_at
+        ))
+
+    # Возвращаем обновлённый проект
+    updated_project = project_repo.get_by_id(project_id, load_criteria=False)
+    return schemas.ProjectWithCriteriaResponse(
+        id=updated_project.id,
+        name=updated_project.name,
+        user_id=updated_project.user_id,
+        aggregation_method=updated_project.aggregation_method,
+        created_at=updated_project.created_at,
+        updated_at=updated_project.updated_at,
+        criteria=new_criteria
+    )
+
 @router.get("/projects", response_model=List[schemas.ProjectResponse])
 def list_projects(
     user = Depends(get_current_user),
     project_repo = Depends(get_project_repo)
 ):
     projects = project_repo.get_by_user(user["user_id"])
+    # В ответе не возвращаем критерии для списка
     return [
         schemas.ProjectResponse(
             id=p.id,
@@ -112,32 +179,31 @@ def list_projects(
 @router.get("/projects/{project_id}", response_model=schemas.ProjectWithCriteriaResponse)
 def get_project(
     project_id: uuid.UUID,
-    include_criteria: bool = True,
     user = Depends(get_current_user),
     project_repo = Depends(get_project_repo),
     criterion_repo = Depends(get_criterion_repo)
 ):
-    project = project_repo.get_by_id(project_id, load_criteria=include_criteria)
+    project = project_repo.get_by_id(project_id, load_criteria=True)
     if not project or project.user_id != user["user_id"]:
         raise HTTPException(404, "Project not found")
 
     criteria = []
-    if include_criteria:
-        if hasattr(project, 'criteria') and project.criteria is not None:
-            criteria_list = project.criteria
-        else:
-            criteria_list = criterion_repo.get_by_project(project_id)
-        criteria = [
-            schemas.CriterionResponse(
-                id=c.id,
-                project_id=c.project_id,
-                analysis_type=c.analysis_type,
-                data_type=c.data_type,
-                weight=c.weight,
-                logic_params=c.logic_params,
-                created_at=c.created_at
-            ) for c in criteria_list
-        ]
+    if hasattr(project, 'criteria') and project.criteria is not None:
+        criteria_list = project.criteria
+    else:
+        criteria_list = criterion_repo.get_by_project(project_id)
+
+    criteria = [
+        schemas.CriterionResponse(
+            id=c.id,
+            project_id=c.project_id,
+            analysis_type=c.analysis_type,
+            data_type=c.data_type,
+            weight=c.weight,
+            logic_params=c.logic_params,
+            created_at=c.created_at
+        ) for c in criteria_list
+    ]
 
     return schemas.ProjectWithCriteriaResponse(
         id=project.id,
@@ -342,20 +408,29 @@ def get_task_status(
 def get_project_results(
     project_id: uuid.UUID,
     user = Depends(get_current_user),
-    result_repo = Depends(get_result_repo)
+    result_repo = Depends(get_result_repo),
+    settings = Depends(get_settings)
 ):
     results = result_repo.get_by_project_and_user(project_id, user["user_id"])
-    return [
-        schemas.ResultResponse(
+    base_url = f"http://{settings['minio_public_host']}:9000/{settings['minio_bucket']}"
+    response = []
+    for r in results:
+        download_url = base_url + '/' + r.data_url
+        preview_url = None
+        if r.data_url and r.data_url.endswith('.tif'):
+            preview_url = base_url + '/' + r.data_url.replace('.tif', '.png')
+        response.append(schemas.ResultResponse(
             id=r.id,
             task_id=r.task_id,
             result_type=r.result_type,
             name=r.name,
-            data_url=r.data_url,
+            data_url=download_url,
             created_at=r.created_at,
-            geo_metadata=r.geo_metadata
-        ) for r in results
-    ]
+            geo_metadata=r.geo_metadata,
+            bbox=r.bbox,
+            preview_url=preview_url
+        ))
+    return response
 
 @router.get("/results/{result_id}/download")
 def download_result(
@@ -366,13 +441,34 @@ def download_result(
 ):
     result = result_repo.get_by_id(result_id)
     if not result or result.user_id != user["user_id"]:
-        raise HTTPException(404)
+        raise HTTPException(404, "Result not found or access denied")
     base_url = f"http://{settings['minio_public_host']}:9000/{settings['minio_bucket']}"
+    download_url = base_url + '/' + result.data_url
     preview_url = None
-    if result.data_url.endswith('.tif'):
+    if result.data_url and result.data_url.endswith('.tif'):
         preview_url = base_url + '/' + result.data_url.replace('.tif', '.png')
     return {
-        "download_url": base_url + '/' + result.data_url,
+        "download_url": download_url,
         "preview_url": preview_url,
         "bbox": result.bbox
     }
+
+@router.get("/projects/{project_id}/tasks", response_model=List[schemas.TaskResponse])
+def get_project_tasks(
+    project_id: uuid.UUID,
+    user = Depends(get_current_user),
+    project_repo = Depends(get_project_repo),
+    task_repo = Depends(get_task_repo)
+):
+    project = project_repo.get_by_id(project_id, load_criteria=False)
+    if not project or project.user_id != user["user_id"]:
+        raise HTTPException(404, "Project not found")
+    tasks = task_repo.get_by_project(project_id)
+    return [
+        schemas.TaskResponse(
+            id=t.id,
+            status=t.status,
+            created_at=t.created_at,
+            finished_at=t.finished_at
+        ) for t in tasks
+    ]

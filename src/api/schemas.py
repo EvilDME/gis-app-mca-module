@@ -83,6 +83,7 @@ class ResultResponse(BaseModel):
     created_at: datetime
     geo_metadata: Optional[Dict[str, Any]] = None
     bbox: Optional[List[float]] = None
+    preview_url: Optional[str] = None  # добавить
 
 # --------------------- ПРОЕКТЫ С КРИТЕРИЯМИ ---------------------
 class ProjectWithCriteriaCreateRequest(BaseModel):
@@ -108,3 +109,9 @@ class ProjectWithCriteriaResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     criteria: List[CriterionResponse]
+    
+class TaskResponse(BaseModel):
+    id: UUID
+    status: str
+    created_at: datetime
+    finished_at: Optional[datetime] = None  

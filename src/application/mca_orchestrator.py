@@ -135,13 +135,23 @@ class McaOrchestrator:
 
             # Сохранение метаданных в БД
             meta = self._extract_metadata(scored)
+            display_name = "Оценка по"
+            if layer.data_type == 'dem':
+                display_name = "Оценка по уклону"
+            elif layer.data_type == 'roads':
+                display_name = "Оценка по близости дорог"
+            elif layer.data_type == 'water':
+                display_name = "Оценка по близости водоёмов"
+            else:
+                display_name = f"Оценка по {layer.name}"
+
             self.result_repo.create(
                 task_id=task_id,
                 project_id=project.id,
                 user_id=user_id,
                 result_type="intermediate_raster",
                 data_url=intermediate_key,
-                name=f"Normalized {layer.name}",
+                name=display_name,
                 geo_metadata=meta,
                 bbox=meta.get('bbox'),
                 criterion_id=crit.id
@@ -184,13 +194,14 @@ class McaOrchestrator:
             print(f"Failed to generate preview for {final_key}: {e}")
 
         final_meta = self._extract_metadata(final_raster)
+        final_name = "Карта пригодности территории для экотуризма"
         self.result_repo.create(
             task_id=task_id,
             project_id=project.id,
             user_id=user_id,
             result_type="final_raster",
             data_url=final_key,
-            name=f"Final suitability for {project.name}",
+            name=final_name,
             geo_metadata=final_meta,
             bbox=final_meta.get('bbox'),
             criterion_id=None
