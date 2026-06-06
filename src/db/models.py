@@ -90,6 +90,7 @@ class Result(Base):
     geo_metadata = Column(JSONB, nullable=False)
     name = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    bbox = Column(JSONB, nullable=True)
 
     # связи
     task = relationship("Task", back_populates="results")

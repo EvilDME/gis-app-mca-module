@@ -366,7 +366,13 @@ def download_result(
 ):
     result = result_repo.get_by_id(result_id)
     if not result or result.user_id != user["user_id"]:
-        raise HTTPException(404, "Result not found or access denied")
-
-    public_url = f"http://{settings['minio_public_host']}:9000/{settings['minio_bucket']}/{result.data_url}"
-    return {"download_url": public_url}
+        raise HTTPException(404)
+    base_url = f"http://{settings['minio_public_host']}:9000/{settings['minio_bucket']}"
+    preview_url = None
+    if result.data_url.endswith('.tif'):
+        preview_url = base_url + '/' + result.data_url.replace('.tif', '.png')
+    return {
+        "download_url": base_url + '/' + result.data_url,
+        "preview_url": preview_url,
+        "bbox": result.bbox
+    }

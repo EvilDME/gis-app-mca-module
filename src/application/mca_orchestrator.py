@@ -16,6 +16,7 @@ from src.db.repositories import (
     TaskRepository, ResultRepository, ProjectCriterionRepository
 )
 from src.services.layer_selector import LayerSelector
+from src.utils.raster_preview import generate_preview_from_array
 
 
 class McaOrchestrator:
@@ -59,7 +60,7 @@ class McaOrchestrator:
         if project.study_area:
             study_area_shape = geoalchemy_shape.to_shape(project.study_area)
 
-        # 1. Выбор мастер-сетки: слой с data_type='dem'
+        # Выбор мастер-сетки: слой с data_type='dem'
         master_layer = self.layer_selector.select_layer('slope', 'dem', study_area_shape)
         if not master_layer:
             raise ValueError("No DEM layer found for master grid")
@@ -82,7 +83,7 @@ class McaOrchestrator:
                 continue
             print(f"Criterion {crit.id} uses layer {layer.name} ({layer.data_path})")
 
-            # Чтение сырых данных в зависимости от source_type
+            # Чтение сырых данных
             if layer.source_type == 'minio_raster':
                 raw_raster = self.raster_reader.read_raster(layer.data_path)
                 if crit.analysis_type == 'slope':
@@ -114,9 +115,26 @@ class McaOrchestrator:
             processed_factors.append(scored_with_name)
             used_weights[str(crit.id)] = crit.weight
 
-            # Сохранение промежуточного результата
+            # Сохранение промежуточного результата (GeoTIFF)
             intermediate_key = f"users/{user_id}/projects/{project.id}/tasks/{task_id}/criteria/{crit.id}.tif"
             self.raster_writer.write_raster(scored, intermediate_key)
+
+            # Генерация PNG-превью
+            png_key = intermediate_key.replace('.tif', '.png')
+            try:
+                generate_preview_from_array(
+                    scored.values,
+                    self.raster_writer.client,
+                    self.raster_writer.bucket,
+                    intermediate_key,
+                    png_key,
+                    colormap='grayscale'
+                )
+            except Exception as e:
+                print(f"Failed to generate preview for {intermediate_key}: {e}")
+
+            # Сохранение метаданных в БД
+            meta = self._extract_metadata(scored)
             self.result_repo.create(
                 task_id=task_id,
                 project_id=project.id,
@@ -124,7 +142,8 @@ class McaOrchestrator:
                 result_type="intermediate_raster",
                 data_url=intermediate_key,
                 name=f"Normalized {layer.name}",
-                geo_metadata=self._extract_metadata(scored),
+                geo_metadata=meta,
+                bbox=meta.get('bbox'),
                 criterion_id=crit.id
             )
 
@@ -146,8 +165,25 @@ class McaOrchestrator:
         else:
             raise ValueError(f"Unknown aggregation method {project.aggregation_method}")
 
+        # Сохранение финального результата (GeoTIFF)
         final_key = f"users/{user_id}/projects/{project.id}/tasks/{task_id}/final.tif"
         self.raster_writer.write_raster(final_raster, final_key)
+
+        # Генерация PNG-превью для финального растра
+        final_png_key = final_key.replace('.tif', '.png')
+        try:
+            generate_preview_from_array(
+                final_raster.values,
+                self.raster_writer.client,
+                self.raster_writer.bucket,
+                final_key,
+                final_png_key,
+                colormap='heatmap'
+            )
+        except Exception as e:
+            print(f"Failed to generate preview for {final_key}: {e}")
+
+        final_meta = self._extract_metadata(final_raster)
         self.result_repo.create(
             task_id=task_id,
             project_id=project.id,
@@ -155,17 +191,30 @@ class McaOrchestrator:
             result_type="final_raster",
             data_url=final_key,
             name=f"Final suitability for {project.name}",
-            geo_metadata=self._extract_metadata(final_raster),
+            geo_metadata=final_meta,
+            bbox=final_meta.get('bbox'),
             criterion_id=None
         )
+
         self.task_repo.update_status(task.id, "COMPLETED")
         print(f"Analysis completed. Task {task_id} finished.")
-    
+
     def _extract_metadata(self, raster: RasterData) -> Dict[str, Any]:
+        from rasterio.transform import array_bounds
+        from rasterio.warp import transform_bounds
+        bounds = array_bounds(raster.meta['height'], raster.meta['width'], raster.meta['transform'])
+        src_crs = raster.meta.get('crs')
+        dst_crs = 'EPSG:4326'
+        if src_crs and src_crs != dst_crs:
+            try:
+                bounds = transform_bounds(src_crs, dst_crs, *bounds)
+            except Exception as e:
+                print(f"Warning: could not transform bounds to WGS84: {e}")
         return {
-            "crs": str(raster.meta.get('crs')),
+            "crs": dst_crs,
             "dtype": str(raster.values.dtype),
             "min": float(np.nanmin(raster.values)),
             "max": float(np.nanmax(raster.values)),
-            "nodata": raster.meta.get('nodata')
+            "nodata": raster.meta.get('nodata'),
+            "bbox": list(bounds)  # [minx, miny, maxx, maxy] в градусах
         }

@@ -82,6 +82,7 @@ class ResultResponse(BaseModel):
     data_url: str
     created_at: datetime
     geo_metadata: Optional[Dict[str, Any]] = None
+    bbox: Optional[List[float]] = None
 
 # --------------------- ПРОЕКТЫ С КРИТЕРИЯМИ ---------------------
 class ProjectWithCriteriaCreateRequest(BaseModel):

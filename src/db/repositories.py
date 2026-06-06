@@ -240,6 +240,7 @@ class ResultRepository(BaseRepository):
     def create(self, task_id: uuid.UUID, project_id: uuid.UUID, user_id: str,
             result_type: str, data_url: str, name: str,
             geo_metadata: Dict[str, Any],
+            bbox: Optional[List[float]] = None,
             criterion_id: Optional[uuid.UUID] = None) -> Result:
         result = Result(
             task_id=task_id,
@@ -249,7 +250,8 @@ class ResultRepository(BaseRepository):
             result_type=result_type,
             data_url=data_url,
             geo_metadata=geo_metadata,
-            name=name
+            name=name,
+            bbox=bbox
         )
         self.add(result)
         self.session.commit()
