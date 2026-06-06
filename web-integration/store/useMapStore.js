@@ -167,5 +167,23 @@ export const useMapStore = create((set, get) => ({
       set({ routeProgress: 0 });
       toast.error("Не удалось построить: " + err.message, { id: toastId });
     }
-  }
+  },
+
+  // --- Рисование области для MCA ---
+  rectanglePoints: [],
+  rectangleGeoJson: null,
+  // в useMapStore.js
+  addRectanglePoint: (point) => {
+    console.log('[useMapStore] addRectanglePoint:', point);
+    set((state) => ({ rectanglePoints: [...state.rectanglePoints, point] }));
+  },
+  clearRectangle: () => {
+    console.log('[useMapStore] clearRectangle вызван');
+    set({ rectanglePoints: [], rectangleGeoJson: null });
+  },
+  setRectangleGeoJson: (geojson) => {
+    console.log('[useMapStore] setRectangleGeoJson:', geojson);
+    set({ rectangleGeoJson: geojson });
+},
+  
 }));
