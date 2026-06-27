@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from shapely.geometry import shape as shapely_shape
 from geoalchemy2.shape import from_shape
+from geoalchemy2.shape import to_shape
 
 from src.api import schemas
 from src.api.dependencies import (
@@ -176,6 +177,7 @@ def list_projects(
         ) for p in projects
     ]
 
+
 @router.get("/projects/{project_id}", response_model=schemas.ProjectWithCriteriaResponse)
 def get_project(
     project_id: uuid.UUID,
@@ -186,6 +188,15 @@ def get_project(
     project = project_repo.get_by_id(project_id, load_criteria=True)
     if not project or project.user_id != user["user_id"]:
         raise HTTPException(404, "Project not found")
+
+    # Преобразуем study_area из WKB в GeoJSON
+    study_area_geojson = None
+    if project.study_area:
+        shape = to_shape(project.study_area)
+        study_area_geojson = {
+            "type": "Polygon",
+            "coordinates": [list(shape.exterior.coords)]
+        }
 
     criteria = []
     if hasattr(project, 'criteria') and project.criteria is not None:
@@ -210,6 +221,7 @@ def get_project(
         name=project.name,
         user_id=project.user_id,
         aggregation_method=project.aggregation_method,
+        study_area=study_area_geojson,   # добавляем
         created_at=project.created_at,
         updated_at=project.updated_at,
         criteria=criteria

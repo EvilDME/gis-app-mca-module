@@ -17,7 +17,7 @@ from src.db.repositories import (
 )
 from src.services.layer_selector import LayerSelector
 from src.utils.raster_preview import generate_preview_from_array
-
+from src.utils.raster_mask import create_mask_from_polygon, apply_mask_to_raster
 
 class McaOrchestrator:
     def __init__(
@@ -69,6 +69,15 @@ class McaOrchestrator:
         if master_raster.meta['crs'].is_geographic:
             master_raster = reproject_raster(master_raster, target_crs=target_crs)
 
+        mask = create_mask_from_polygon(
+            project.study_area,
+            master_raster.meta['transform'],
+            master_raster.meta['width'],
+            master_raster.meta['height'],
+            target_crs=master_raster.meta['crs']
+        )
+        master_raster = apply_mask_to_raster(master_raster, mask)
+
         processed_factors = []
         used_weights = {}
 
@@ -102,6 +111,7 @@ class McaOrchestrator:
                 continue
 
             aligned = align_raster(raw_raster, master_raster)
+            aligned = apply_mask_to_raster(aligned, mask)
             crit_dict = {
                 "id": str(crit.id),
                 "display_name": layer.name,
@@ -128,7 +138,8 @@ class McaOrchestrator:
                     self.raster_writer.bucket,
                     intermediate_key,
                     png_key,
-                    colormap='grayscale'
+                    colormap='grayscale',
+                    nodata=scored.meta.get('nodata')
                 )
             except Exception as e:
                 print(f"Failed to generate preview for {intermediate_key}: {e}")
@@ -188,7 +199,8 @@ class McaOrchestrator:
                 self.raster_writer.bucket,
                 final_key,
                 final_png_key,
-                colormap='heatmap'
+                colormap='heatmap',
+                nodata=final_raster.meta.get('nodata')
             )
         except Exception as e:
             print(f"Failed to generate preview for {final_key}: {e}")

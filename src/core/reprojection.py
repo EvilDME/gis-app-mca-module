@@ -74,7 +74,7 @@ def align_raster(target: RasterData, reference: RasterData) -> RasterData:
         target.meta['height'] == reference.meta['height']):
         return target
 
-    print(f"📏 Выравнивание {target.name} под сетку {reference.name}...")
+    print(f"Выравнивание {target.name} под сетку {reference.name}...")
 
     # 1. Извлекаем параметры эталона
     dst_crs = reference.meta['crs']
